@@ -1,75 +1,57 @@
-import os
-from tkinter import Tk, filedialog, simpledialog, messagebox, scrolledtext, Button, Label
+import streamlit as st
 from docx import Document
 from PyPDF2 import PdfReader
 
-def extrair_texto_pdf(caminho):
+st.set_page_config(page_title="Triagem de Currículos", layout="centered")
+
+def extrair_texto_pdf(arquivo):
     texto = ""
     try:
-        reader = PdfReader(caminho)
+        reader = PdfReader(arquivo)
         for page in reader.pages:
             texto += page.extract_text() or ""
     except:
         texto = "[Erro na leitura do PDF]"
     return texto
 
-def extrair_texto_docx(caminho):
+def extrair_texto_docx(arquivo):
     texto = ""
     try:
-        doc = Document(caminho)
+        doc = Document(arquivo)
         for para in doc.paragraphs:
             texto += para.text + "\n"
     except:
         texto = "[Erro na leitura do DOCX]"
     return texto
 
-def selecionar_pasta():
-    pasta = filedialog.askdirectory(title="Selecione a pasta com currículos")
-    if not pasta:
-        return
+st.title("🔍 Triagem de Currículos")
 
-    criterios_str = simpledialog.askstring("Critérios", "Informe as palavras-chave separadas por vírgula:")
-    if not criterios_str:
-        return
+st.markdown("**Envie arquivos .PDF ou .DOCX e defina os critérios para filtrar os currículos automaticamente.**")
 
-    criterios = [c.strip().lower() for c in criterios_str.split(",")]
+criterios = st.text_input("Critérios (separados por vírgula)", "Excel, Administrativo")
 
-    curriculos_aceitos = []
+arquivos = st.file_uploader("Envie os currículos", accept_multiple_files=True, type=["pdf", "docx"])
 
-    for arquivo in os.listdir(pasta):
-        caminho_arquivo = os.path.join(pasta, arquivo)
-        if arquivo.lower().endswith(".pdf"):
-            texto = extrair_texto_pdf(caminho_arquivo)
-        elif arquivo.lower().endswith(".docx"):
-            texto = extrair_texto_docx(caminho_arquivo)
-        else:
-            continue
+if st.button("Analisar") and arquivos:
+    criterios_lista = [c.strip().lower() for c in criterios.split(",")]
+    resultados = []
 
+    for arq in arquivos:
+        texto = ""
+        if arq.name.endswith(".pdf"):
+            texto = extrair_texto_pdf(arq)
+        elif arq.name.endswith(".docx"):
+            texto = extrair_texto_docx(arq)
+        
         texto = texto.lower()
-        encontrados = [c for c in criterios if c in texto]
+        encontrados = [c for c in criterios_lista if c in texto]
 
         if encontrados:
-            curriculos_aceitos.append((arquivo, encontrados))
+            resultados.append((arq.name, encontrados))
 
-    # Exibir os resultados
-    resultado_text.delete("1.0", "end")
-    if curriculos_aceitos:
-        for nome, palavras in curriculos_aceitos:
-            resultado_text.insert("end", f"- {nome}: {', '.join(palavras)}\n")
+    if resultados:
+        st.success(f"{len(resultados)} currículo(s) encontrados com os critérios:")
+        for nome, palavras in resultados:
+            st.write(f"- **{nome}** → {', '.join(palavras)}")
     else:
-        resultado_text.insert("end", "Nenhum currículo atendeu aos critérios.")
-
-# Interface
-root = Tk()
-root.title("Triagem de Currículos Automática")
-root.geometry("600x400")
-
-Label(root, text="Triagem de Currículos", font=("Arial", 14)).pack(pady=10)
-
-btn = Button(root, text="Selecionar Pasta e Iniciar", command=selecionar_pasta)
-btn.pack(pady=5)
-
-resultado_text = scrolledtext.ScrolledText(root, width=80, height=15)
-resultado_text.pack(padx=10, pady=10)
-
-root.mainloop()
+        st.warning("Nenhum currículo atendeu aos critérios.")
